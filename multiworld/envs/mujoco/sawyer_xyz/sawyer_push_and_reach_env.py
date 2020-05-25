@@ -22,7 +22,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             hand_low=(-0.28, 0.3, 0.05),
             hand_high=(0.28, 0.9, 0.3),
 
-            fix_goal=False,
+            fix_goal=True,
             fixed_goal=(0.15, 0.6, 0.02, -0.15, 0.6),
             goal_low=(-0.25, 0.3, 0.02, -.2, .4),
             goal_high=(0.25, 0.875, 0.02, .2, .8),
