@@ -199,6 +199,9 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             state_success=float(state_distance < self.indicator_threshold),
         )
 
+    def is_goal_state(self, state):
+        return np.linalg.norm(state - self._state_goal, ord=self.norm_order) < self.indicator_threshold
+
     def get_puck_pos(self):
         return self.data.get_body_xpos('puck').copy()
 

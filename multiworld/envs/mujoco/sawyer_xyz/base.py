@@ -1,4 +1,6 @@
 import abc
+
+import ipdb
 import numpy as np
 import mujoco_py
 
@@ -90,6 +92,7 @@ class SawyerXYZEnv(SawyerMocapBase, metaclass=abc.ABCMeta):
             self.mocap_low,
             self.mocap_high,
         )
+        ipdb.set_trace()
         self.data.set_mocap_pos('mocap', new_mocap_pos)
         self.data.set_mocap_quat('mocap', np.array([1, 0, 1, 0]))
 
