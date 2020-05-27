@@ -1,4 +1,7 @@
+import pdb
 from collections import OrderedDict
+
+import ipdb
 import numpy as np
 from gym.spaces import Box, Dict
 
@@ -9,15 +12,17 @@ from multiworld.envs.mujoco.sawyer_xyz.base import SawyerXYZEnv
 
 import mujoco_py
 
+
 class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
     def __init__(
             self,
             puck_low=(-.4, .2),
             puck_high=(.4, 1),
 
-            reward_type='state_distance',
             norm_order=1,
             indicator_threshold=0.06,
+            goal_type='puck',
+            dense_reward=False,
 
             hand_low=(-0.28, 0.3, 0.05),
             hand_high=(0.28, 0.9, 0.3),
@@ -39,7 +44,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             **kwargs
     ):
         self.quick_init(locals())
-        self.model_name=get_asset_full_path(xml_path)
+        self.model_name = get_asset_full_path(xml_path)
         MultitaskEnv.__init__(self)
         SawyerXYZEnv.__init__(
             self,
@@ -65,9 +70,10 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.goal_low = np.array(goal_low)
         self.goal_high = np.array(goal_high)
 
-        self.reward_type = reward_type
         self.norm_order = norm_order
         self.indicator_threshold = indicator_threshold
+        self.goal_type = goal_type
+        self.dense_reward = dense_reward
 
         self.fix_goal = fix_goal
         self.fixed_goal = np.array(fixed_goal)
@@ -99,8 +105,9 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.reset_free = reset_free
         self.reset_counter = 0
         self.puck_space = Box(self.puck_low, self.puck_high, dtype=np.float32)
-        self.clamp_puck_on_step=clamp_puck_on_step
-        self.puck_radius=puck_radius
+        self.clamp_puck_on_step = clamp_puck_on_step
+        self.puck_radius = puck_radius
+
         self.reset()
 
     def viewer_setup(self):
@@ -124,9 +131,10 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             self._set_puck_xy(curr_puck_pos)
         self._set_goal_marker(self._state_goal)
         ob = self._get_obs()
+        ipdb.set_trace()
         reward = self.compute_reward(action, ob)
         info = self._get_info()
-        done = False
+        done = self.is_goal_state()
         return ob, reward, done, info
 
     def _get_obs(self):
@@ -181,9 +189,9 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             puck_distance=puck_distance,
             puck_distance_l1=puck_distance_l1,
             puck_distance_l2=puck_distance_l2,
-            hand_and_puck_distance=hand_distance+puck_distance,
-            hand_and_puck_distance_l1=hand_distance_l1+puck_distance_l1,
-            hand_and_puck_distance_l2=hand_distance_l2+puck_distance_l2,
+            hand_and_puck_distance=hand_distance + puck_distance,
+            hand_and_puck_distance_l1=hand_distance_l1 + puck_distance_l1,
+            hand_and_puck_distance_l2=hand_distance_l2 + puck_distance_l2,
             touch_distance=touch_distance,
             touch_distance_l1=touch_distance_l1,
             touch_distance_l2=touch_distance_l2,
@@ -193,14 +201,38 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             hand_success=float(hand_distance < self.indicator_threshold),
             puck_success=float(puck_distance < self.indicator_threshold),
             hand_and_puck_success=float(
-                hand_distance+puck_distance < self.indicator_threshold
+                hand_distance + puck_distance < self.indicator_threshold
             ),
             touch_success=float(touch_distance < self.indicator_threshold),
             state_success=float(state_distance < self.indicator_threshold),
         )
 
-    def is_goal_state(self, state):
-        return np.linalg.norm(state - self._state_goal, ord=self.norm_order) < self.indicator_threshold
+    def is_goal_state(self, state=None):
+        # copied from compute_rewards
+        hand_goals = self._state_goal[:3]
+        puck_goals = self._state_goal[3:]
+
+        # used internally by multiworld to determine if current state is goal state
+        if state is None:
+            achieved_goals = self._get_obs()['achieved_goal']
+            hand_pos = achieved_goals[:3]
+            puck_pos = achieved_goals[:,3:]
+        else:  # used by deep skill chaining to determine if provided state is goal state
+            assert isinstance(state, np.ndarray), type(state)
+            hand_pos = state[:3]
+            puck_pos = state[3:]
+
+        if self.goal_type == 'hand':
+            dist = hand_goals - hand_pos
+        elif self.goal_type == 'puck':
+            dist = puck_goals - puck_pos
+        elif self.goal_type == 'touch':
+            dist = hand_pos - np.append(puck_pos, self.init_puck_z)
+        elif self.goal_type == 'state':
+            dist = np.hstack((self.get_endeff_pos(), self.get_puck_pos()[:2])) - self._state_goal
+        else:
+            raise NotImplementedError("Invalid/no goal type.")
+        return np.linalg.norm(dist, ord=self.norm_order) < self.indicator_threshold
 
     def get_puck_pos(self):
         return self.data.get_body_xpos('puck').copy()
@@ -269,13 +301,14 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
 
     @property
     def init_angles(self):
-        return [1.7244448, -0.92036369,  0.10234232,  2.11178144,  2.97668632, -0.38664629, 0.54065733,
+        return [1.7244448, -0.92036369, 0.10234232, 2.11178144, 2.97668632, -0.38664629, 0.54065733,
                 5.05442647e-04, 6.00496057e-01, 3.06443862e-02,
                 1, 0, 0, 0]
 
     """
     Multitask functions
     """
+
     def get_goal(self):
         return {
             'desired_goal': self._state_goal,
@@ -300,8 +333,8 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         goal = self.sample_goal()
         hand_goal_xy = goal['state_desired_goal'][:2]
         puck_goal_xy = goal['state_desired_goal'][3:]
-        dist = np.linalg.norm(hand_goal_xy-puck_goal_xy)
-        while(dist<=self.puck_radius):
+        dist = np.linalg.norm(hand_goal_xy - puck_goal_xy)
+        while dist <= self.puck_radius:
             goal = self.sample_goal()
             hand_goal_xy = goal['state_desired_goal'][:2]
             puck_goal_xy = goal['state_desired_goal'][3:]
@@ -334,37 +367,30 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         hand_goals = desired_goals[:, :3]
         puck_goals = desired_goals[:, 3:]
 
-        hand_distances = np.linalg.norm(hand_goals - hand_pos, ord=self.norm_order, axis=1)
-        puck_distances = np.linalg.norm(puck_goals - puck_pos, ord=self.norm_order, axis=1)
-        puck_zs = self.init_puck_z * np.ones((desired_goals.shape[0], 1))
-        touch_distances = np.linalg.norm(
-            hand_pos - np.hstack((puck_pos, puck_zs)),
-            ord=self.norm_order,
-            axis=1,
-        )
-
-        if self.reward_type == 'hand_distance':
-            r = -hand_distances
-        elif self.reward_type == 'hand_success':
-            r = -(hand_distances > self.indicator_threshold).astype(float)
-        elif self.reward_type == 'puck_distance':
-            r = -puck_distances
-        elif self.reward_type == 'puck_success':
-            r = -(puck_distances > self.indicator_threshold).astype(float)
-        elif self.reward_type == 'hand_and_puck_distance':
-            r = -(puck_distances + hand_distances)
-        elif self.reward_type == 'state_distance':
-            r = -np.linalg.norm(
-                achieved_goals - desired_goals,
-                ord=self.norm_order,
-                axis=1
-            )
-        elif self.reward_type == 'vectorized_state_distance':
-            r = -np.abs(achieved_goals - desired_goals)
-        elif self.reward_type == 'touch_distance':
-            r = -touch_distances
-        elif self.reward_type == 'touch_success':
-            r = -(touch_distances > self.indicator_threshold).astype(float)
+        if self.goal_type == 'hand':
+            hand_distances = np.linalg.norm(hand_goals - hand_pos, ord=self.norm_order)
+            if self.dense_reward:
+                r = -hand_distances
+            else:
+                r = -(hand_distances > self.indicator_threshold).astype(float)
+        elif self.goal_type == 'puck':
+            puck_distances = np.linalg.norm(puck_goals - puck_pos, ord=self.norm_order)
+            if self.dense_reward:
+                r = -puck_distances
+            else:
+                r = -(puck_distances > self.indicator_threshold).astype(float)
+        elif self.goal_type == 'touch':
+            touch_distances = np.linalg.norm(hand_pos - np.append(puck_pos, self.init_puck_z), ord=self.norm_order)
+            if self.dense_reward:
+                r = -touch_distances
+            else:
+                r = -(touch_distances > self.indicator_threshold).astype(float)
+        elif self.goal_type == 'state':
+            state_distance = -np.linalg.norm(achieved_goals - desired_goals, ord=self.norm_order)
+            if self.dense_reward:
+                r = -state_distance
+            else:
+                r = -(state_distance > self.indicator_threshold).astype(float)
         else:
             raise NotImplementedError("Invalid/no reward type.")
         return r
@@ -399,12 +425,12 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
                 '%s%s' % (prefix, stat_name),
                 stat,
                 always_show_all_stats=True,
-                ))
+            ))
             statistics.update(create_stats_ordered_dict(
                 'Final %s%s' % (prefix, stat_name),
                 [s[-1] for s in stat],
                 always_show_all_stats=True,
-                ))
+            ))
         return statistics
 
     def get_env_state(self):
@@ -450,9 +476,9 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 
 
 if __name__ == '__main__':
-    env = SawyerPushAndReachXYEnv(num_resets_before_puck_reset=int(1e6))
+    env = SawyerPushAndReachXYEnv()
     for i in range(1000):
         if i % 100 == 0:
             env.reset()
         env.step([0, 1])
-        env.render()
+        # env.render()
