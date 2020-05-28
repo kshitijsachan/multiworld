@@ -21,7 +21,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             reward_type='touch_distance',
             norm_order=1,
             indicator_threshold=0.06,
-            touch_threshold=0.195,  # I just chose this number after doing a few runs and looking at a histogram
+            touch_threshold=0.17,  # I just chose this number after doing a few runs and looking at a histogram
 
             hand_low=(-0.28, 0.3, 0.05),
             hand_high=(0.28, 0.9, 0.3),
@@ -469,11 +469,8 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 
 if __name__ == '__main__':
     env = SawyerPushAndReachXYEnv(goal_type='touch', dense_reward=False)
-    touch_distance = []
-    for i in range(100000):
-        if i % 600 == 0:
+    for i in range(10000):
+        if i % 1000 == 0:
             env.reset()
-
-        env.step([random.uniform(-1, 1), random.uniform(-1, 1)])
-
+        ob, reward, done, info = env.step([random.uniform(-1, 1), random.uniform(-1, 1)])
         env.render()
