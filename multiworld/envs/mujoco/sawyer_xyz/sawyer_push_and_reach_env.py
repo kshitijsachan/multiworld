@@ -133,7 +133,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         ob = self._get_obs()
         reward = self.compute_reward(action, ob)
         info = self._get_info()
-        done = self.is_goal_state(ob['observed'])
+        done = self.is_goal_state(ob['observation'])
         return ob, reward, done, info
 
     def _get_obs(self):
@@ -468,7 +468,7 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 
 
 if __name__ == '__main__':
-    env = SawyerPushAndReachXYEnv(goal_type='touch')
+    env = SawyerPushAndReachXYEnv(goal_type='touch', dense_reward=False)
     touch_distance = []
     for i in range(100000):
         if i % 600 == 0:
