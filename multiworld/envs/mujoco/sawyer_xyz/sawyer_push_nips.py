@@ -95,6 +95,9 @@ class SawyerPushAndReachXYEnv(MujocoEnv, Serializable, MultitaskEnv):
         self.reset()
         self.reset_mocap_welds()
 
+    # def testing(self):
+    #     return 'testing function'
+
     @property
     def model_name(self):
         return get_asset_full_path(
