@@ -21,13 +21,13 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             reward_type='touch_distance',
             norm_order=1,
             indicator_threshold=0.06,
-            touch_threshold=0.17,  # I just chose this number after doing a few runs and looking at a histogram
+            touch_threshold=0.1,  # I just chose this number after doing a few runs and looking at a histogram
 
             hand_low=(-0.28, 0.3, 0.05),
             hand_high=(0.28, 0.9, 0.3),
 
             fix_goal=True,
-            fixed_goal=(0.15, 0.6, 0.02, -0.15, 0.6),
+            fixed_goal=(0.25, 0.6, 0.02, -0.15, 0.6),
             goal_low=(-0.25, 0.3, 0.02, -.2, .4),
             goal_high=(0.25, 0.875, 0.02, .2, .8),
 
@@ -106,8 +106,8 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.reset_free = reset_free
         self.reset_counter = 0
         self.puck_space = Box(self.puck_low, self.puck_high, dtype=np.float32)
-        self.clamp_puck_on_step=clamp_puck_on_step
-        self.puck_radius=puck_radius
+        self.clamp_puck_on_step = clamp_puck_on_step
+        self.puck_radius = puck_radius
         self.reset()
 
     def viewer_setup(self):
@@ -375,7 +375,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         elif self.goal_type == 'touch':
             threshold = self.touch_threshold
             puck_zs = self.init_puck_z * np.ones((desired_goals.shape[0], 1))
-            dist = np.linalg.norm(hand_pos - np.hstack((puck_pos, puck_zs)),ord=self.norm_order,axis=1,)
+            dist = np.linalg.norm(hand_pos - np.hstack((puck_pos, puck_zs)), ord=self.norm_order,axis=1,)
         elif self.goal_type == 'state':
             dist = np.linalg.norm(achieved_goals - desired_goals, ord=self.norm_order, axis=1)
         else:
@@ -468,9 +468,15 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 
 
 if __name__ == '__main__':
-    env = SawyerPushAndReachXYEnv(goal_type='touch', dense_reward=False)
-    for i in range(10000):
-        if i % 1000 == 0:
-            env.reset()
+    env = SawyerPushAndReachXYEnv(goal_type='puck', dense_reward=False)
+    for i in range(5000):
         ob, reward, done, info = env.step([random.uniform(-1, 1), random.uniform(-1, 1)])
         env.render()
+        # ob, reward, done, info = env.step([0, 0])
+
+    # print(np.round(ob['observation'], 3))
+
+    # ob, reward, done, info = env.step([0.9064628, -0.8112495])
+    # print(ob['observation'])
+    # print(env._get_obs()['state_observation'])
+    #     env.render()
