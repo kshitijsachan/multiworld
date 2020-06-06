@@ -47,7 +47,8 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
 
         self.goal_type = kwargs.pop('goal_type', 'puck')
         self.dense_reward = kwargs.pop('dense_reward', False)
-
+        self.indicator_threshold = kwargs.pop('goal_tolerance', indicator_threshold)
+        
         MultitaskEnv.__init__(self)
         SawyerXYZEnv.__init__(
             self,
@@ -73,7 +74,6 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
 
         self.reward_type = reward_type
         self.norm_order = norm_order
-        self.indicator_threshold = indicator_threshold
         self.touch_threshold = touch_threshold
 
         self.fix_goal = fix_goal
