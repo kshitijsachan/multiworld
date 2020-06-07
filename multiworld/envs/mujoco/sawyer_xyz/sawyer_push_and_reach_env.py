@@ -27,8 +27,8 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             hand_high=(0.28, 0.9, 0.3),
 
             fix_goal=True,
-            fixed_goal=(0.25, 0.6, 0.02, -0.15, 0.6),
-            goal_low=(-0.25, 0.3, 0.02, -.2, .4),
+            fixed_goal=(0.15, 0.6, 0.02, -0.25, 0.6),
+            goal_low=(-0.25, 0.3, 0.02, -0.25, .4),
             goal_high=(0.25, 0.875, 0.02, .2, .8),
 
             hide_goal_markers=False,
@@ -48,7 +48,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.goal_type = kwargs.pop('goal_type', 'puck')
         self.dense_reward = kwargs.pop('dense_reward', False)
         self.indicator_threshold = kwargs.pop('goal_tolerance', indicator_threshold)
-        
+
         MultitaskEnv.__init__(self)
         SawyerXYZEnv.__init__(
             self,
@@ -74,6 +74,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
 
         self.reward_type = reward_type
         self.norm_order = norm_order
+        self.indicator_threshold = indicator_threshold
         self.touch_threshold = touch_threshold
 
         self.fix_goal = fix_goal
