@@ -49,6 +49,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.dense_reward = kwargs.pop('dense_reward', False)
         self.indicator_threshold = kwargs.pop('goal_tolerance', indicator_threshold)
         self.fixed_goal = np.array(kwargs.pop('goal', fixed_goal))
+        self.task_agnostic = kwargs.pop('task_agnostic', False)
 
         MultitaskEnv.__init__(self)
         SawyerXYZEnv.__init__(
@@ -131,9 +132,9 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             self._set_puck_xy(curr_puck_pos)
         self._set_goal_marker(self._state_goal)
         ob = self._get_obs()
-        reward = self.compute_reward(action, ob)
+        reward = self.compute_reward(action, ob) if not self.task_agnostic else 0.
         info = self._get_info()
-        done = self.is_goal_state(ob['observation'])
+        done = self.is_goal_state(ob['observation']) if not self.task_agnostic else False
         return ob, reward, done, info
 
     def _get_obs(self):
@@ -469,7 +470,7 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 
 if __name__ == '__main__':
     env = SawyerPushAndReachXYEnv(goal_type='puck', dense_reward=False)
-    for i in range(5000):
+    for i in range(20000):
         ob, reward, done, info = env.step([random.uniform(-1, 1), random.uniform(-1, 1)])
         env.render()
         # ob, reward, done, info = env.step([0, 0])
