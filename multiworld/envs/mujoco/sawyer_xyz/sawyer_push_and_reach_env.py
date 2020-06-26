@@ -1,11 +1,12 @@
 from collections import OrderedDict
 import random
 
+import gym
 import ipdb
-from matplotlib import pyplot as plt
 import numpy as np
 from gym.spaces import Box, Dict
 
+from multiworld import register_all_envs
 from multiworld.envs.env_util import get_stat_in_paths, \
     create_stats_ordered_dict, get_asset_full_path
 from multiworld.core.multitask_env import MultitaskEnv
@@ -18,7 +19,6 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             puck_low=(-.4, .2),
             puck_high=(.4, 1),
 
-            reward_type='touch_distance',
             norm_order=1,
             indicator_threshold=0.06,
             touch_threshold=0.1,  # I just chose this number after doing a few runs and looking at a histogram
@@ -74,7 +74,6 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.goal_low = np.array(goal_low)
         self.goal_high = np.array(goal_high)
 
-        self.reward_type = reward_type
         self.norm_order = norm_order
         self.touch_threshold = touch_threshold
         self.fix_goal = fix_goal
@@ -469,10 +468,14 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 
 
 if __name__ == '__main__':
-    env = SawyerPushAndReachXYEnv(goal_type='puck', dense_reward=False)
-    for i in range(20000):
-        ob, reward, done, info = env.step([random.uniform(-1, 1), random.uniform(-1, 1)])
+    register_all_envs()
+    env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='state', dense_reward=False, task_agnostic=False)
+    # env = SawyerPushAndReachXYEnv(goal_type='puck', dense_reward=False)
+    for i in range(20):
+        ob, reward, done, info = env.step([0, 0])
         env.render()
+        ipdb.set_trace()
+        print(np.round(ob['observation'], 3))
         # ob, reward, done, info = env.step([0, 0])
 
     # print(np.round(ob['observation'], 3))
