@@ -122,7 +122,6 @@ def register_mujoco_envs():
             hand_high=(0.25, .8, 0.02),
             norm_order=2,
             xml_path='sawyer_xyz/sawyer_push_puck.xml',
-            reward_type='state_distance',
             reset_free=False,
             clamp_puck_on_step=True,
         )

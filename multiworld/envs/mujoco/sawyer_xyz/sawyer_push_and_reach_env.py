@@ -31,7 +31,6 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             goal_low=(-0.25, 0.3, 0.02, -0.25, .4),
             goal_high=(0.25, 0.875, 0.02, .2, .8),
 
-            hide_goal_markers=False,
             init_puck_z=0.02,
             init_hand_xyz=(0, 0.4, 0.07),
 
@@ -80,7 +79,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
 
         self._state_goal = None
 
-        self.hide_goal_markers = hide_goal_markers
+        self.hide_goal_markers = self.task_agnostic
 
         self.action_space = Box(np.array([-1, -1, -1]), np.array([1, 1, 1]), dtype=np.float32)
         self.hand_and_puck_space = Box(
@@ -252,10 +251,11 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.data.site_xpos[self.model.site_name2id('puck-goal-site')][:2] = (
             goal[3:]
         )
-        if self.hide_goal_markers:
+        if self.hide_goal_markers or self.goal_type == 'touch' or self.goal_type == 'puck':
             self.data.site_xpos[self.model.site_name2id('hand-goal-site'), 2] = (
                 -1000
             )
+        if self.hide_goal_markers or self.goal_type == 'touch' or self.goal_type == 'hand':
             self.data.site_xpos[self.model.site_name2id('puck-goal-site'), 2] = (
                 -1000
             )
@@ -469,13 +469,14 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 
 if __name__ == '__main__':
     register_all_envs()
-    env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='state', dense_reward=False, task_agnostic=False)
+    env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=True, task_agnostic=False)
+    # env = gym.make('SawyerPushAndReachEnvHard-v0', goal_type='puck', dense_reward=True, task_agnostic=False)
     # env = SawyerPushAndReachXYEnv(goal_type='puck', dense_reward=False)
-    for i in range(20):
-        ob, reward, done, info = env.step([0, 0])
+    for i in range(10000):
+        # if i % 1000 == 0:
+            # env.reset()
+        ob, reward, done, info = env.step([random.uniform(-1, 0), random.uniform(-1, 1)])
         env.render()
-        ipdb.set_trace()
-        print(np.round(ob['observation'], 3))
         # ob, reward, done, info = env.step([0, 0])
 
     # print(np.round(ob['observation'], 3))
