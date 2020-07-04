@@ -99,6 +99,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             ('proprio_desired_goal', self.hand_space),
             ('proprio_achieved_goal', self.hand_space),
         ])
+        self.init_puck_xy = np.array([0, 0.6])
         self.init_puck_z = init_puck_z
         self.init_hand_xyz = np.array(init_hand_xyz)
         self._set_puck_xy(self.sample_puck_xy())
@@ -238,7 +239,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         return self.data.get_body_xpos('puck').copy()
 
     def sample_puck_xy(self):
-        return np.array([0, 0.6])
+        return self.init_puck_xy
 
     def _set_goal_marker(self, goal):
         """
@@ -300,6 +301,18 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             self.viewer_setup()
         return ob
 
+    def reset_to_new_start_state(self, start_pos=None, goal_puck_pos=None):
+        assert start_pos is not None or goal_puck_pos is not None
+
+        if start_pos is not None:
+            self.init_puck_xy = start_pos[3:]
+            self.init_hand_xyz[:2] = start_pos[:2]
+
+        if goal_puck_pos is not None:
+            self.fixed_goal[3:] = goal_puck_pos
+
+        return self.reset()
+
     @property
     def init_angles(self):
         return [1.7244448, -0.92036369,  0.10234232,  2.11178144,  2.97668632, -0.38664629, 0.54065733,
@@ -334,7 +347,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         hand_goal_xy = goal['state_desired_goal'][:2]
         puck_goal_xy = goal['state_desired_goal'][3:]
         dist = np.linalg.norm(hand_goal_xy-puck_goal_xy)
-        while(dist<=self.puck_radius):
+        while dist <= self.puck_radius:
             goal = self.sample_goal()
             hand_goal_xy = goal['state_desired_goal'][:2]
             puck_goal_xy = goal['state_desired_goal'][3:]
@@ -473,13 +486,18 @@ if __name__ == '__main__':
     # env = gym.make('SawyerPushAndReachEnvHard-v0', goal_type='puck', dense_reward=True, task_agnostic=False)
     # env = SawyerPushAndReachXYEnv(goal_type='puck', dense_reward=False)
     for i in range(10000):
-        # if i % 1000 == 0:
-            # env.reset()
-        ob, reward, done, info = env.step([random.uniform(-1, 0), random.uniform(-1, 1)])
+        if i % 100 == 0:
+            print(i)
+            # env.reset_to_new_start_state(start_puck_pos=[random.uniform(-0.2, 0.2), random.uniform(0.35, 0.85)],
+            env.reset_to_new_start_state(start_puck_pos=[-0.25, 0.2],
+                                         # start_hand_pos=[random.uniform(-0.28, 0.28), random.uniform(0.3, 0.9)],
+                                         start_hand_pos=[-0.28, 0.3],
+                                         goal_puck_pos=[random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
+        ob, reward, done, info = env.step([0, 0])
+        # ob, reward, done, info = env.step([random.uniform(-1, 1), random.uniform(-1, 1)])
+        # print(np.round(ob['observation'], 3))
         env.render()
         # ob, reward, done, info = env.step([0, 0])
-
-    # print(np.round(ob['observation'], 3))
 
     # ob, reward, done, info = env.step([0.9064628, -0.8112495])
     # print(ob['observation'])
