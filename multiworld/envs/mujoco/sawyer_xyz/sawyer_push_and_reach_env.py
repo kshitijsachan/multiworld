@@ -311,7 +311,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         if goal_puck_pos is not None:
             self.fixed_goal[3:] = goal_puck_pos
 
-        return self.reset()
+        self.reset()
 
     @property
     def init_angles(self):
@@ -488,15 +488,15 @@ if __name__ == '__main__':
     for i in range(10000):
         if i % 100 == 0:
             print(i)
-            # env.reset_to_new_start_state(start_puck_pos=[random.uniform(-0.2, 0.2), random.uniform(0.35, 0.85)],
-            env.reset_to_new_start_state(start_puck_pos=[-0.25, 0.2],
-                                         # start_hand_pos=[random.uniform(-0.28, 0.28), random.uniform(0.3, 0.9)],
-                                         start_hand_pos=[-0.28, 0.3],
-                                         goal_puck_pos=[random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
+            # env.reset_to_new_start_state(start_pos=[random.uniform(-0.2, 0.2), random.uniform(0.35, 0.85), 0.02, random.uniform(-0.28, 0.28), random.uniform(0.3, 0.9)],
+            env.reset_to_new_start_state(start_pos=[-0.2, 0.4, 0.02, -0.2, 0.4], goal_puck_pos=[random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
+
         ob, reward, done, info = env.step([0, 0])
+        print(ob)
+        ipdb.set_trace()
         # ob, reward, done, info = env.step([random.uniform(-1, 1), random.uniform(-1, 1)])
         # print(np.round(ob['observation'], 3))
-        env.render()
+        # env.render()
         # ob, reward, done, info = env.step([0, 0])
 
     # ob, reward, done, info = env.step([0.9064628, -0.8112495])
