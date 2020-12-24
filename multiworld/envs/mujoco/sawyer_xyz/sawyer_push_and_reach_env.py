@@ -170,7 +170,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         puck_distance_l2 = np.linalg.norm(puck_diff, 2)
 
         # touch distance
-        touch_diff = self.get_endeff_pos() - puck_pos
+        touch_diff = endeff_pos - puck_pos
         touch_distance = np.linalg.norm(touch_diff, ord=self.norm_order)
         touch_distance_l1 = np.linalg.norm(touch_diff, ord=1)
         touch_distance_l2 = np.linalg.norm(touch_diff, ord=2)
