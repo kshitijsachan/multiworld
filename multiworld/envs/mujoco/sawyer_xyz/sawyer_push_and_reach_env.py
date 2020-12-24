@@ -129,7 +129,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             self._set_puck_xy(curr_puck_pos)
         self._set_goal_marker(self._state_goal)
         ob = self._get_obs()
-        reward = self.compute_reward(action, ob) if not self.task_agnostic else 0.
+        reward = self.compute_rewards(action, ob) if not self.task_agnostic else 0.
         info = self._get_info()
         done = self.is_goal_state(ob['observation']) if not self.task_agnostic else False
         return ob, reward, done, info
@@ -154,8 +154,11 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
     def _get_info(self, state=None):
         hand_goal = self._state_goal[:3]
         puck_goal = self._state_goal[3:]
-        endeff_pos = self.get_endeff_pos() if state is None else state[:3]
-        puck_pos = self.get_puck_pos()[:2] if state is None else state[3:]
+        endeff_pos = self.get_endeff_pos()
+        puck_pos = self.get_puck_pos()
+        if state is not None:
+            endeff_pos = state[:3]
+            puck_pos[:2] = state[3:]
 
         # hand distance
         hand_diff = hand_goal - endeff_pos
@@ -164,7 +167,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         hand_distance_l2 = np.linalg.norm(hand_diff, 2)
 
         # puck distance
-        puck_diff = puck_goal - puck_pos
+        puck_diff = puck_goal - puck_pos[:2]
         puck_distance = np.linalg.norm(puck_diff, ord=self.norm_order)
         puck_distance_l1 = np.linalg.norm(puck_diff, 1)
         puck_distance_l2 = np.linalg.norm(puck_diff, 2)
@@ -176,7 +179,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         touch_distance_l2 = np.linalg.norm(touch_diff, ord=2)
 
         # state distance
-        state_diff = np.hstack((endeff_pos, puck_pos)) - self._state_goal
+        state_diff = np.hstack((endeff_pos, puck_pos[:2])) - self._state_goal
         state_distance = np.linalg.norm(state_diff, ord=self.norm_order)
         state_distance_l1 = np.linalg.norm(state_diff, ord=1)
         state_distance_l2 = np.linalg.norm(state_diff, ord=2)
@@ -372,10 +375,12 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         Returns:
             True if is goal state, false otherwise
         """
+        dist = self.distance_from_goal(state)
+        tolerance = self.indicator_threshold if self.goal_type != 'touch' else self.touch_threshold
         return dist < tolerance
 
     def compute_rewards(self, actions, obs):
-        state = obs['observation'][0]
+        state = obs['observation']
         dist = self.distance_from_goal(state)
         tolerance = self.indicator_threshold if self.goal_type != 'touch' else self.touch_threshold
 
