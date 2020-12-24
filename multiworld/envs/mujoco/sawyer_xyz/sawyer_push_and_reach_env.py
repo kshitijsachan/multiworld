@@ -372,12 +372,10 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         Returns:
             True if is goal state, false otherwise
         """
-
         return dist < tolerance
 
     def compute_rewards(self, actions, obs):
-        assert obs['state_achieved_goal'][0] == obs['observation'][0] == self._get_obs()['state_achieved_goal'] == self._get_obs()['observation']
-        state = obs['state_achieved_goal'][0]
+        state = obs['observation'][0]
         dist = self.distance_from_goal(state)
         tolerance = self.indicator_threshold if self.goal_type != 'touch' else self.touch_threshold
 
