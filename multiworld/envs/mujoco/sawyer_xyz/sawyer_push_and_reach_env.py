@@ -1,14 +1,12 @@
 from collections import OrderedDict
 import random
-
 import gym
 import ipdb
 import numpy as np
 from gym.spaces import Box, Dict
 
 from multiworld import register_all_envs
-from multiworld.envs.env_util import get_stat_in_paths, \
-    create_stats_ordered_dict, get_asset_full_path
+from multiworld.envs.env_util import get_stat_in_paths, create_stats_ordered_dict, get_asset_full_path
 from multiworld.core.multitask_env import MultitaskEnv
 from multiworld.envs.mujoco.sawyer_xyz.base import SawyerXYZEnv
 
@@ -153,30 +151,32 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             proprio_achieved_goal=flat_obs[:3],
         )
 
-    def _get_info(self):
+    def _get_info(self, state=None):
         hand_goal = self._state_goal[:3]
         puck_goal = self._state_goal[3:]
+        endeff_pos = self.get_endeff_pos() if state is None else state[:3]
+        puck_pos = self.get_puck_pos()[:2] if state is None else state[3:]
 
         # hand distance
-        hand_diff = hand_goal - self.get_endeff_pos()
+        hand_diff = hand_goal - endeff_pos
         hand_distance = np.linalg.norm(hand_diff, ord=self.norm_order)
         hand_distance_l1 = np.linalg.norm(hand_diff, 1)
         hand_distance_l2 = np.linalg.norm(hand_diff, 2)
 
         # puck distance
-        puck_diff = puck_goal - self.get_puck_pos()[:2]
+        puck_diff = puck_goal - puck_pos
         puck_distance = np.linalg.norm(puck_diff, ord=self.norm_order)
         puck_distance_l1 = np.linalg.norm(puck_diff, 1)
         puck_distance_l2 = np.linalg.norm(puck_diff, 2)
 
         # touch distance
-        touch_diff = self.get_endeff_pos() - self.get_puck_pos()
+        touch_diff = self.get_endeff_pos() - puck_pos
         touch_distance = np.linalg.norm(touch_diff, ord=self.norm_order)
         touch_distance_l1 = np.linalg.norm(touch_diff, ord=1)
         touch_distance_l2 = np.linalg.norm(touch_diff, ord=2)
 
         # state distance
-        state_diff = np.hstack((self.get_endeff_pos(), self.get_puck_pos()[:2])) - self._state_goal
+        state_diff = np.hstack((endeff_pos, puck_pos)) - self._state_goal
         state_distance = np.linalg.norm(state_diff, ord=self.norm_order)
         state_distance_l1 = np.linalg.norm(state_diff, ord=1)
         state_distance_l2 = np.linalg.norm(state_diff, ord=2)
@@ -206,6 +206,15 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             state_success=float(state_distance < self.indicator_threshold),
         )
 
+    def distance_from_goal(self, state):
+        assert isinstance(state, np.ndarray), type(state)
+        distances = self._get_info(state)
+        dict_key = self.goal_type + '_distance'
+        try:
+            return distances[dict_key]
+        except KeyError:
+            raise NotImplementedError("Invalid/no reward type.")
+
     def is_goal_state(self, state):
         """
         Only used by deep skill chaining.
@@ -214,26 +223,9 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         Returns:
             True if is goal state, false otherwise
         """
-        assert isinstance(state, np.ndarray), type(state)
-        hand_goal = self._state_goal[:3]
-        puck_goal = self._state_goal[3:]
-        hand_pos = state[:3]
-        puck_pos = state[3:]
-        tolerance = self.indicator_threshold
-
-        if self.goal_type == 'hand':
-            dist = hand_pos - hand_goal
-        elif self.goal_type == 'puck':
-            dist = puck_pos - puck_goal
-        elif self.goal_type == 'touch':
-            tolerance = self.touch_threshold
-            three_d_puck_pos = np.append(puck_pos, self.init_puck_z)
-            dist = hand_pos - three_d_puck_pos
-        elif self.goal_type == 'state':
-            dist = state - self._state_goal
-        else:
-            raise NotImplementedError("Invalid/no reward type.")
-        return np.linalg.norm(dist, ord=self.norm_order) < tolerance
+        dist = self.distance_from_goal(state)
+        tolerance = self.indicator_threshold if self.goal_type != 'touch' else self.touch_threshold
+        return dist < tolerance
 
     def get_puck_pos(self):
         return self.data.get_body_xpos('puck').copy()
@@ -372,33 +364,26 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             'state_desired_goal': goals,
         }
 
-    def compute_rewards(self, actions, obs):
-        achieved_goals = obs['state_achieved_goal']
-        desired_goals = obs['state_desired_goal']
-        hand_pos = achieved_goals[:, :3]
-        puck_pos = achieved_goals[:, 3:]
-        hand_goals = desired_goals[:, :3]
-        puck_goals = desired_goals[:, 3:]
-        threshold = self.indicator_threshold
+    def is_goal_state(self, state):
+        """
+        Only used by deep skill chaining.
+        Args:
+            state (np.ndarray): state array [endeff_x, endeff_x, endeff_x, puck_x, puck_y]
+        Returns:
+            True if is goal state, false otherwise
+        """
 
-        if self.goal_type == 'hand':
-            dist = np.linalg.norm(hand_goals - hand_pos, ord=self.norm_order, axis=1)
-        elif self.goal_type == 'puck':
-            dist = np.linalg.norm(puck_goals - puck_pos, ord=self.norm_order, axis=1)
-        elif self.goal_type == 'touch':
-            threshold = self.touch_threshold
-            puck_zs = self.init_puck_z * np.ones((desired_goals.shape[0], 1))
-            dist = np.linalg.norm(hand_pos - np.hstack((puck_pos, puck_zs)), ord=self.norm_order,axis=1,)
-        elif self.goal_type == 'state':
-            dist = np.linalg.norm(achieved_goals - desired_goals, ord=self.norm_order, axis=1)
-        else:
-            raise NotImplementedError("Invalid/no reward type.")
+        return dist < tolerance
+
+    def compute_rewards(self, actions, obs):
+        state = obs['state_achieved_goal']
+        dist = self.distance_from_goal(state)
+        tolerance = self.indicator_threshold if self.goal_type != 'touch' else self.touch_threshold
 
         if self.dense_reward:
             return -dist
         else:
-            return -(dist > threshold).astype(float)
-
+            return -(dist > tolerance).astype(float)
 
     def get_diagnostics(self, paths, prefix=''):
         statistics = OrderedDict()
