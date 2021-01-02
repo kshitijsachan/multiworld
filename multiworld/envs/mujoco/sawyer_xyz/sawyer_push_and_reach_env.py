@@ -129,10 +129,10 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             self._set_puck_xy(curr_puck_pos)
         self._set_goal_marker(self._state_goal)
         ob = self._get_obs()
-        reward = self.compute_rewards(action, ob) if not self.task_agnostic else 0.
-        info = self._get_info()
-        done = self.is_goal_state(ob['observation']) if not self.task_agnostic else False
-        return ob, reward, done, info
+        # reward = self.compute_rewards(action, ob) if not self.task_agnostic else 0.
+        # info = self._get_info()
+        # done = self.is_goal_state(ob['observation']) if not self.task_agnostic else False
+        return ob
 
     def _get_obs(self):
         e = self.get_endeff_pos()
@@ -209,8 +209,17 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             state_success=float(state_distance < self.indicator_threshold),
         )
 
-    def distance_from_goal(self, state):
-        assert isinstance(state, np.ndarray), type(state)
+    def distance_from_goal(self, state=None, goal=None):
+        if state is None:
+            endeff_pos, puck_pos = self.get_endeff_pos(), self.get_puck_pos()
+        else:
+            endeff_pos, puck_pos = state[:3], state[3:]
+        if goal is None:
+            hand_goal, puck_goal = self._state_goal[:3], self._state_goal[3:]
+        else:
+            hand_goal, puck_goal = goal[:3], goal[:3]
+
+
         distances = self._get_info(state)
         dict_key = self.goal_type + '_distance'
         try:
@@ -226,7 +235,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         Returns:
             True if is goal state, false otherwise
         """
-        dist = self.distance_from_goal(state)
+        dist = self.distance_from_goal(state=state)
         tolerance = self.indicator_threshold if self.goal_type != 'touch' else self.touch_threshold
         return dist < tolerance
 
@@ -276,7 +285,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             self._set_puck_xy(self.sample_puck_xy())
 
         goal = self.sample_valid_goal()
-        self.set_goal(goal)
+        self.set_goal(goal['state_desired_goal'])
         self.reset_counter += 1
         self.reset_mocap_welds()
         return self._get_obs()
@@ -324,7 +333,7 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         }
 
     def set_goal(self, goal):
-        self._state_goal = goal['state_desired_goal']
+        self._state_goal = goal
         self._set_goal_marker(self._state_goal)
 
     def set_to_goal(self, goal):
@@ -366,18 +375,6 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             'desired_goal': goals,
             'state_desired_goal': goals,
         }
-
-    def is_goal_state(self, state):
-        """
-        Only used by deep skill chaining.
-        Args:
-            state (np.ndarray): state array [endeff_x, endeff_x, endeff_x, puck_x, puck_y]
-        Returns:
-            True if is goal state, false otherwise
-        """
-        dist = self.distance_from_goal(state)
-        tolerance = self.indicator_threshold if self.goal_type != 'touch' else self.touch_threshold
-        return dist < tolerance
 
     def compute_rewards(self, actions, obs):
         state = obs['observation']
