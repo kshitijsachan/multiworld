@@ -26,10 +26,10 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
 
             fix_goal=True,
             fixed_goal=(0.15, 0.6, 0.02, -0.15, 0.6),
-            goal_low=(-0.25, 0.3, 0.02, -0.25, .4),
+            goal_low=(-0.25, 0.3, 0.02, -0.2, .4),
             goal_high=(0.25, 0.875, 0.02, .2, .8),
 
-            init_puck_z=0.02,
+            init_puck_z=0.035,
             init_hand_xyz=(0, 0.4, 0.07),
 
             reset_free=False,
@@ -277,15 +277,21 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.set_state(qpos, qvel)
 
     def reset_model(self):
+        goal = self.sample_valid_goal()
+        self.set_goal(goal['state_desired_goal'])
+
+        # Sets reset vars but doesn't actually reset hand position
         self._reset_hand()
+
+        # Actually moves the hand's position. Could knock the puck out of the way,
+        # so needs to be done BEFORE resetting puck position.
+        self.step([0, 0])
         if not self.reset_free:
             self._set_puck_xy(self.sample_puck_xy())
 
         if not (self.puck_space.contains(self.get_puck_pos()[:2])):
             self._set_puck_xy(self.sample_puck_xy())
 
-        goal = self.sample_valid_goal()
-        self.set_goal(goal['state_desired_goal'])
         self.reset_counter += 1
         self.reset_mocap_welds()
         return self._get_obs()
@@ -439,8 +445,8 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
 class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
     def __init__(self, *args, hand_z_position=0.05, **kwargs):
         self.quick_init(locals())
-        SawyerPushAndReachXYZEnv.__init__(self, *args, **kwargs)
         self.hand_z_position = hand_z_position
+        SawyerPushAndReachXYZEnv.__init__(self, *args, **kwargs)
         self.action_space = Box(np.array([-1, -1]), np.array([1, 1]), dtype=np.float32)
         self.fixed_goal[2] = hand_z_position
         hand_and_puck_low = self.hand_and_puck_space.low.copy()
@@ -469,23 +475,21 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 if __name__ == '__main__':
     register_all_envs()
     env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=True, task_agnostic=False)
-    # env = gym.make('SawyerPushAndReachEnvHard-v0', goal_type='puck', dense_reward=True, task_agnostic=False)
-    # env = SawyerPushAndReachXYEnv(goal_type='puck', dense_reward=False)
+
+    # env.reset_to_new_start_state(
+    #     start_pos=[random.uniform(-0.2, 0.2), random.uniform(0.35, 0.85), 0.07, random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
+    env.reset_to_new_start_state(start_pos=[.2, .8, 0.07, .1, 0.6])
     for i in range(10000):
-        if i % 100 == 0:
-            print(i)
-            # env.reset_to_new_start_state(start_pos=[random.uniform(-0.2, 0.2), random.uniform(0.35, 0.85), 0.02, random.uniform(-0.28, 0.28), random.uniform(0.3, 0.9)],
-            env.reset_to_new_start_state(start_pos=[-0.2, 0.4, 0.02, -0.2, 0.4], goal_puck_pos=[random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
 
-        ob, reward, done, info = env.step([0, 0])
-        print(ob)
-        ipdb.set_trace()
-        # ob, reward, done, info = env.step([random.uniform(-1, 1), random.uniform(-1, 1)])
-        # print(np.round(ob['observation'], 3))
-        # env.render()
-        # ob, reward, done, info = env.step([0, 0])
-
-    # ob, reward, done, info = env.step([0.9064628, -0.8112495])
-    # print(ob['observation'])
-    # print(env._get_obs()['state_observation'])
-    #     env.render()
+        # env.init_hand_xyz = [random.uniform(-0.25, 0.25), random.uniform(0.35, 0.85), 0.07]
+        # env.init_hand_xyz = [.1, .7, 0.07]
+        # env._reset_hand()
+        env.reset()
+        env.render()
+        for _ in range(5):
+            ob = env.step([random.uniform(-1,1), random.uniform(-1,1)])
+            env.render()
+        print(env.get_env_state())
+        # env._set_puck_xy([random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
+        env.render()
+        print(np.round(ob['observation'], 3))
