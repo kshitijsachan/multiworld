@@ -277,15 +277,21 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.set_state(qpos, qvel)
 
     def reset_model(self):
+        goal = self.sample_valid_goal()
+        self.set_goal(goal['state_desired_goal'])
+
+        # Sets reset vars but doesn't actually reset hand position
         self._reset_hand()
+
+        # Actually moves the hand's position. Could knock the puck out of the way,
+        # so needs to be done BEFORE resetting puck position.
+        self.step([0, 0])
         if not self.reset_free:
             self._set_puck_xy(self.sample_puck_xy())
 
         if not (self.puck_space.contains(self.get_puck_pos()[:2])):
             self._set_puck_xy(self.sample_puck_xy())
 
-        goal = self.sample_valid_goal()
-        self.set_goal(goal['state_desired_goal'])
         self.reset_counter += 1
         self.reset_mocap_welds()
         return self._get_obs()
@@ -301,7 +307,6 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
 
     def reset(self):
         ob = self.reset_model()
-        self.step([0,0])
         if self.viewer is not None:
             self.viewer_setup()
         return ob
@@ -473,7 +478,7 @@ if __name__ == '__main__':
 
     # env.reset_to_new_start_state(
     #     start_pos=[random.uniform(-0.2, 0.2), random.uniform(0.35, 0.85), 0.07, random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
-    env.reset_to_new_start_state(start_pos=[.2, .8, 0.07, -0.2, 0.4])
+    env.reset_to_new_start_state(start_pos=[.2, .8, 0.07, .1, 0.6])
     for i in range(10000):
 
         # env.init_hand_xyz = [random.uniform(-0.25, 0.25), random.uniform(0.35, 0.85), 0.07]
