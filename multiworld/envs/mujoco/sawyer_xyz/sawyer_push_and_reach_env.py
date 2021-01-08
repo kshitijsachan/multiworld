@@ -128,11 +128,11 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             curr_puck_pos = np.clip(curr_puck_pos, self.puck_space.low, self.puck_space.high)
             self._set_puck_xy(curr_puck_pos)
         self._set_goal_marker(self._state_goal)
-        ob = self._get_obs()
+        next_state = self._get_obs()['state_observation']
         # reward = self.compute_rewards(action, ob) if not self.task_agnostic else 0.
         # info = self._get_info()
         # done = self.is_goal_state(ob['observation']) if not self.task_agnostic else False
-        return ob
+        return next_state
 
     def _get_obs(self):
         e = self.get_endeff_pos()
@@ -276,52 +276,51 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         qvel[8:15] = 0
         self.set_state(qpos, qvel)
 
-    def reset_model(self):
-        goal = self.sample_valid_goal()
-        self.set_goal(goal['state_desired_goal'])
+    def reset_model(self, start_pos=None, goal_pos=None):
+        if goal_pos is None:
+            goal_pos = self.sample_valid_goal()['state_desired_goal']
+        self.set_goal(goal_pos)
 
         # Sets reset vars but doesn't actually reset hand position
-        self._reset_hand()
+        self._reset_hand(start_pos)
 
         # Actually moves the hand's position. Could knock the puck out of the way,
         # so needs to be done BEFORE resetting puck position.
         self.step([0, 0])
+
         if not self.reset_free:
-            self._set_puck_xy(self.sample_puck_xy())
+            if start_pos is None:
+                puck_xy = self.sample_puck_xy()
+            else:
+                puck_xy = start_pos[3:]
+            self._set_puck_xy(puck_xy)
 
         if not (self.puck_space.contains(self.get_puck_pos()[:2])):
             self._set_puck_xy(self.sample_puck_xy())
-
         self.reset_counter += 1
         self.reset_mocap_welds()
         return self._get_obs()
 
-    def _reset_hand(self):
+    def _reset_hand(self, start_pos=None):
         velocities = self.data.qvel.copy()
         angles = self.data.qpos.copy()
         angles[:7] = self.init_angles[:7]
         self.set_state(angles.flatten(), velocities.flatten())
+
+        if start_pos is None:
+            hand_pos = self.init_hand_xyz.copy()
+        else:
+            hand_pos = start_pos[:3]
         for _ in range(10):
-            self.data.set_mocap_pos('mocap', self.init_hand_xyz.copy())
+            self.data.set_mocap_pos('mocap', hand_pos)
             self.data.set_mocap_quat('mocap', np.array([1, 0, 1, 0]))
 
-    def reset(self):
-        ob = self.reset_model()
+    def reset(self, start_pos=None, goal_puck_pos=None):
+        ob = self.reset_model(start_pos, goal_puck_pos)
         if self.viewer is not None:
             self.viewer_setup()
-        return ob
+        return ob['state_observation']
 
-    def reset_to_new_start_state(self, start_pos=None, goal_puck_pos=None):
-        assert start_pos is not None or goal_puck_pos is not None
-
-        if start_pos is not None:
-            self.init_puck_xy = start_pos[3:]
-            self.init_hand_xyz[:2] = start_pos[:2]
-
-        if goal_puck_pos is not None:
-            self.fixed_goal[3:] = goal_puck_pos
-
-        self.reset()
 
     @property
     def init_angles(self):
@@ -475,21 +474,11 @@ class SawyerPushAndReachXYEnv(SawyerPushAndReachXYZEnv):
 if __name__ == '__main__':
     register_all_envs()
     env = gym.make('SawyerPushAndReachArenaEnv-v0', goal_type='puck', dense_reward=True, task_agnostic=False)
-
-    # env.reset_to_new_start_state(
-    #     start_pos=[random.uniform(-0.2, 0.2), random.uniform(0.35, 0.85), 0.07, random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
-    env.reset_to_new_start_state(start_pos=[.2, .8, 0.07, .1, 0.6])
-    for i in range(10000):
-
-        # env.init_hand_xyz = [random.uniform(-0.25, 0.25), random.uniform(0.35, 0.85), 0.07]
-        # env.init_hand_xyz = [.1, .7, 0.07]
-        # env._reset_hand()
-        env.reset()
+    for i in range(100):
+        # env.reset_to_new_start_state(start_pos=[.2, .8, 0.07, .1, 0.6])
+        env.reset_to_new_start_state(start_pos=np.random.uniform(env.goal_low, env.goal_high))
+        env.set_goal(np.random.uniform(env.goal_low, env.goal_high))
+        for _ in range(10):
+            env.step(np.random.uniform([-1, -1], [1, 1]))
         env.render()
-        for _ in range(5):
-            ob = env.step([random.uniform(-1,1), random.uniform(-1,1)])
-            env.render()
-        print(env.get_env_state())
-        # env._set_puck_xy([random.uniform(-0.2, 0.2), random.uniform(0.4, 0.8)])
-        env.render()
-        print(np.round(ob['observation'], 3))
+
