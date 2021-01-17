@@ -14,8 +14,8 @@ from multiworld.envs.mujoco.sawyer_xyz.base import SawyerXYZEnv
 class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
     def __init__(
             self,
-            puck_low=(-.4, .2),
-            puck_high=(.4, 1),
+            puck_low=(-.35, .25),
+            puck_high=(.35, .95),
 
             norm_order=1,
             indicator_threshold=0.06,
@@ -47,6 +47,8 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.indicator_threshold = kwargs.pop('goal_tolerance', indicator_threshold)
         self.fixed_goal = np.array(kwargs.pop('goal', fixed_goal))
         self.task_agnostic = kwargs.pop('task_agnostic', False)
+        self.init_puck_xy = np.array(kwargs.pop('init_puck_xy', [0, 0.6]))
+        self.init_hand_xyz = np.array(kwargs.pop('init_hand_xyz', init_hand_xyz))
 
         MultitaskEnv.__init__(self)
         SawyerXYZEnv.__init__(
@@ -97,9 +99,8 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
             ('proprio_desired_goal', self.hand_space),
             ('proprio_achieved_goal', self.hand_space),
         ])
-        self.init_puck_xy = np.array([0, 0.6])
+
         self.init_puck_z = init_puck_z
-        self.init_hand_xyz = np.array(init_hand_xyz)
         self._set_puck_xy(self.sample_puck_xy())
         self.reset_free = reset_free
         self.reset_counter = 0
@@ -256,10 +257,10 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.data.site_xpos[self.model.site_name2id('puck-goal-site')][:2] = (
             goal[3:]
         )
-        if self.hide_goal_markers or self.goal_type == 'touch' or self.goal_type == 'puck':
-            self.data.site_xpos[self.model.site_name2id('hand-goal-site'), 2] = (
-                -1000
-            )
+        # if self.hide_goal_markers or self.goal_type == 'touch' or self.goal_type == 'puck':
+        self.data.site_xpos[self.model.site_name2id('hand-goal-site'), 2] = (
+            -1000
+        )
         if self.hide_goal_markers or self.goal_type == 'touch' or self.goal_type == 'hand':
             self.data.site_xpos[self.model.site_name2id('puck-goal-site'), 2] = (
                 -1000
@@ -277,12 +278,12 @@ class SawyerPushAndReachXYZEnv(MultitaskEnv, SawyerXYZEnv):
         self.set_state(qpos, qvel)
 
     def reset_model(self, start_pos=None, goal_pos=None):
+        # Sets reset vars but doesn't actually reset hand position
+        self._reset_hand(start_pos)
+
         if goal_pos is None:
             goal_pos = self.sample_valid_goal()['state_desired_goal']
         self.set_goal(goal_pos)
-
-        # Sets reset vars but doesn't actually reset hand position
-        self._reset_hand(start_pos)
 
         # Actually moves the hand's position. Could knock the puck out of the way,
         # so needs to be done BEFORE resetting puck position.
